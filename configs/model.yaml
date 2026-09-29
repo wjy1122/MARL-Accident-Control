@@ -1,0 +1,19 @@
+# Phase 4.1 MAPPO network config (no Attention / no training yet)
+seed: 42
+
+model:
+  observation_dim: 17
+  action_dim: 3
+  hidden_dim: 128
+  # Critic centralized input = observation_dim * num_agents
+  # Pad/truncate at runtime if live CAV count differs (later phases).
+  num_agents: 4
+
+attention:
+  enabled: false
+
+actor:
+  hidden_dim: 128
+
+critic:
+  hidden_dim: 128

@@ -1,0 +1,280 @@
+% !TEX program = xelatex
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{cite}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\title{\textbf{基于群体收益与合法动作约束的多智能体强化学习\\高速公路事故区多~CAV~协同换道控制}}
+\author{
+  作者姓名$^{1}$\thanks{通讯作者。邮箱：author@example.com}\\
+  \small $^{1}$所属单位 / 学院
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+高速公路混合交通流中，交通事故造成的局部车道阻塞会引发上游排队与通行效率下降。
+联网自动驾驶车辆（Connected and Automated Vehicles, CAVs）具备感知与协同决策能力，
+但在多车同时接近事故区时，若仅优化个体收益，易出现相互干扰与局部次优换道行为。
+本文提出一种面向事故区通行改善的多智能体强化学习方法——MAPPO with Group Benefit。
+该方法在中心化训练—去中心化执行（CTDE）框架下采用参数共享的~MAPPO；
+设计融合个体速度收益与群体交通效率的复合奖励，并引入事故近区阻塞车道惩罚；
+同时针对离散换道动作空间给出合法动作掩码与信用分配修正，抑制非法动作对策略梯度的污染。
+基于~SUMO/TraCI~构建三车道、1200\,m~高速公路事故场景进行验证。
+在双车道阻塞拥堵场景的初步实验中，Candidate~A 奖励、合法动作掩码与信用分配修正相结合的策略
+在单一随机种子下相对无控制基线提升了平均速度、事故近区速度和通行量，且未发生碰撞；
+与规则绕行相比，其近区速度和通行量略高，但全路段平均速度及平均排队仍有差距。
+由于当前正式结果仅包含一个随机种子，本文将其视为可行性证据，而不作统计显著性结论。
+
+\vspace{0.5em}
+\noindent\textbf{关键词：}多智能体强化学习；联网自动驾驶；MAPPO；群体收益；动作掩码；高速公路事故区；SUMO
+\end{abstract}
+
+\section{引言}
+
+高速公路事故或施工常造成局部车道阻塞，形成瓶颈并向上游传播拥堵\cite{singh2023roadworks}。
+在由人类驾驶车辆（Human-Driven Vehicles, HDVs）与~CAVs~组成的混合交通中，
+如何利用有限渗透率的~CAVs~改善事故区附近的交通运行，是智能交通系统中的重要问题\cite{di2021survey,chen2023merging}。
+
+与单车自适应巡航或规则换道不同，事故区附近常同时存在多辆可控~CAV。
+它们需要在短时间内决定是否换道绕行，以及如何与周围车辆交互。
+若各车独立追求自身速度最大化，可能出现争抢可通行车道、频繁换道或在阻塞车道滞留等现象，
+反而降低区域通行效率\cite{zhou2022marl,bi2024mqlc}。因此，需要一种能够兼顾个体可行性与群体效益的协同控制方法。
+
+深度强化学习为连续交通环境中的序列决策提供了有效工具\cite{wu2022flow}。
+多智能体强化学习（Multi-Agent Reinforcement Learning, MARL）进一步支持在部分可观测条件下的多车协同\cite{yu2022mappo,guo2024mappopis}。
+本文针对高速公路事故区多~CAV~协同换道问题，提出如下贡献：
+
+\begin{enumerate}[leftmargin=2em]
+  \item 构建基于~SUMO~的三车道混合交通事故场景，并给出面向~MARL~的观测、动作与动态多智能体接口（固定槽位重绑定）；
+  \item 采用参数共享~Actor~与中心化~Critic~的~MAPPO（CTDE）作为协同策略学习骨干；
+  \item 设计个体收益与群体收益相结合的奖励（Group Benefit），并给出引入局部混合速度与阻塞车道惩罚的改进形式（Candidate~A）；
+  \item 针对离散换道动作提出合法动作掩码，并修正空槽位~GAE~污染、末端价值自举与换道进行中的指令冲突，系统分析其对非法动作率、振荡与通行指标的影响。
+\end{enumerate}
+
+\section{相关工作}
+
+\subsection{事故区、施工区与瓶颈交通控制}
+车道关闭与施工区通行是典型瓶颈场景。Singh~等\cite{singh2023roadworks}研究了~CAV~在道路施工区的导航与冲突削减；
+匝道合流等瓶颈处的~MARL~控制亦取得进展\cite{chen2023merging,zhao2024ammappo}。
+与宏观信号或固定合流策略不同，本文关注事故导致车道阻塞后，微观多~CAV~的离散换道协同。
+
+\subsection{混合交通中的~CAV~协同换道}
+混合交通下多车协同换道已有较多~MARL~工作：Zhou~等\cite{zhou2022marl}采用参数共享~MA2C~与多目标局部奖励；
+Xu~等\cite{xu2023mvgrl}用多视图图卷积强化学习处理高速混合流协同；
+Bi~等\cite{bi2024mqlc}通过个体—全局混合~Q~学习强化换道协作。
+Han~等\cite{han2024safe,han2023safermm}进一步讨论安全约束与稳健~MAPPO。
+上述研究多面向常规换道或合流，对事故阻塞下个体目标与群体通行效率冲突的专门建模仍相对不足。
+
+\subsection{MAPPO 与动作约束}
+MAPPO 等~CTDE~算法在合作型多智能体任务中表现稳健\cite{yu2022mappo}，
+并已被扩展至~CAV~意图共享协同决策\cite{guo2024mappopis}与动作掩码合流控制\cite{zhao2024ammappo}。
+在离散换道空间中，边界非法动作若仍进入策略梯度，会污染横向动作的优势估计。
+本文以~MAPPO~为骨干，针对事故区交通目标显式引入群体收益奖励，
+并系统研究合法动作掩码与信用分配修正对训练稳定性与通行指标的影响。
+
+\section{问题建模}
+
+\subsection{场景描述}
+考虑单向三车道高速公路路段，长度 $L=1200\,\mathrm{m}$，限速 $v_{\max}=30\,\mathrm{m/s}$。
+车道索引约定：车道~$0$ 为最右侧车道，车道~$2$ 为最左侧车道。
+事故车辆固定位于 $x_{\mathrm{acc}}=700\,\mathrm{m}$，阻塞车道集合为 $\mathcal B=\{0,1\}$，车道~$2$ 保持开放。
+交通需求为 $4800\,\mathrm{veh/h}$，CAV 渗透率 $\rho=0.2$，其余为~HDV。
+HDV 与~CAV~均采用~Krauss~跟驰模型；HDV 驾驶随机性 $\sigma=0.6$，CAV 为 $\sigma=0$。
+
+仿真由~SUMO~驱动，步长 $\Delta t=0.1\,\mathrm{s}$。学习目标是：多辆进入感知范围的~CAV~
+通过协同选择动作，改善事故区附近平均速度、通行量，并抑制上游排队。
+
+\subsection{多智能体~MDP}
+将问题建模为部分可观测多智能体~MDP。在时刻 $t$，活跃~CAV~集合记为 $\mathcal{I}_t$。
+对每个智能体 $i\in\mathcal{I}_t$：
+\begin{itemize}[leftmargin=2em]
+  \item 观测 $o_i^t\in\mathbb{R}^{17}$：自车速度、车道、位置；同车道及左右车道前后车间距与相对速度；
+        至事故点的有符号距离与阻塞车道索引（感知半径 $R=150\,\mathrm{m}$，归一化处理）；
+  \item 动作 $a_i^t\in\{\mathrm{KEEP},\mathrm{LEFT},\mathrm{RIGHT}\}$：保持当前车道、向左换道、向右换道；
+        越界换道视为无效（保持）；
+  \item 奖励 $r_i^t$：由个体收益与群体收益加权构成（见第~\ref{sec:reward}~节）。
+\end{itemize}
+
+由于道路上车流连续到达与离开，活跃~CAV~数量动态变化。训练时采用固定槽位 $N=4$，
+对观测进行填充/截断，并以掩码区分有效智能体。
+
+\section{方法}
+\label{sec:method}
+
+整体框架：环境提供局部观测 $\to$ 合法动作掩码 $\to$ 共享~Actor~输出动作分布；
+中心化~Critic~基于拼接全局状态估计价值；奖励同时反映个体速度与群体交通效率。
+
+\subsection{MAPPO 策略学习（CTDE）}
+采用参数共享策略网络 $\pi_\theta(a_i\mid o_i)$ 与中心化价值网络 $V_\phi(s)$。
+中心化状态由最多 $N$ 个智能体观测拼接得到：
+\begin{equation}
+  s = \mathrm{concat}(o_1,\ldots,o_N)\in\mathbb{R}^{17N}.
+\end{equation}
+执行阶段仅依赖局部观测，满足去中心化部署约束。
+
+优势函数采用广义优势估计（GAE）\cite{schulman2016gae}：
+\begin{equation}
+  \delta_t = r_t + \gamma V_\phi(s_{t+1})(1-d_t) - V_\phi(s_t),
+\end{equation}
+\begin{equation}
+  \hat{A}_t = \sum_{l=0}^{T-t-1}(\gamma\lambda)^l \delta_{t+l},
+\end{equation}
+其中 $\gamma=0.99$，$\lambda=0.95$。策略更新使用~PPO~裁剪目标\cite{schulman2017ppo}：
+\begin{equation}
+  L^{\pi}(\theta) = -\mathbb{E}\Big[
+    \min\big(
+      \rho_t(\theta)\hat{A}_t,\;
+      \mathrm{clip}(\rho_t(\theta),1-\epsilon,1+\epsilon)\hat{A}_t
+    \big)
+  \Big] - c_e\, H[\pi_\theta],
+\end{equation}
+\begin{equation}
+  L^{V}(\phi) = \mathbb{E}\big[(V_\phi(s_t)-R_t)^2\big],
+\end{equation}
+其中 $\rho_t(\theta)=\pi_\theta(a_t\mid o_t)/\pi_{\theta_{\mathrm{old}}}(a_t\mid o_t)$，$\epsilon=0.2$，
+价值损失系数 $c_v=0.5$，熵系数 $c_e=0.01$。
+Actor 与~Critic~均为两层~128~维~ReLU~MLP；Actor/Critic 学习率分别为 $3\times10^{-4}$ 与 $10^{-3}$。
+
+\subsection{合法动作掩码与信用分配修正}
+\label{sec:mask}
+边界非法换道（如车道~$0$ 上~RIGHT、车道~$2$ 上~LEFT）在环境中为静默无效，
+但若仍进入策略采样与梯度更新，会污染横向动作优势估计。
+本文在采样前对非法动作施加掩码，使策略仅在合法动作子集上归一化。
+
+此外，动态多智能体槽位与换道动力学还会引入三类信用分配问题：
+（1）空槽位参与~GAE~回传；（2）rollout~末端缺少~Critic~$V(s_T)$~自举；
+（3）换道进行中仍持续输出横向指令。本文在掩码基础上对上述问题分别修正
+（记为~A+Mask+Fix），以提升训练信号与真实可行动作的一致性。
+
+\subsection{群体收益奖励}
+\label{sec:reward}
+
+\paragraph{基础形式（速度型 Group Benefit）}
+记个体收益为归一化自车速度：
+\begin{equation}
+  R_i^{\mathrm{ind}} = \mathrm{clip}(v_i/v_{\max},0,1).
+\end{equation}
+在半径 $R$ 内的其他~CAV~构成邻居集 $\mathcal{N}_i$，群体项为邻居个体收益均值（无邻居时退化为自身）：
+\begin{equation}
+  R_i^{\mathrm{group}} =
+  \begin{cases}
+    \displaystyle\frac{1}{|\mathcal{N}_i|}\sum_{j\in\mathcal{N}_i} R_j^{\mathrm{ind}}, & |\mathcal{N}_i|>0,\\[0.6em]
+    R_i^{\mathrm{ind}}, & \text{otherwise}.
+  \end{cases}
+\end{equation}
+总奖励：
+\begin{equation}
+  R_i = \mathrm{clip}\big(0.7\,R_i^{\mathrm{ind}} + 0.3\,R_i^{\mathrm{group}},\,0,1\big).
+\end{equation}
+
+\paragraph{改进形式（Candidate~A）}
+仅优化~CAV~速度均值可能与事故区绕行质量脱节。改进奖励引入局部混合交通速度与近区阻塞车道惩罚：
+\begin{equation}
+  R_i^{\mathrm{group}} = \alpha S_{\mathrm{cav}} + (1-\alpha) S_{\mathrm{loc}},
+  \qquad \alpha=0.6,
+\end{equation}
+其中 $S_{\mathrm{cav}}$、$S_{\mathrm{loc}}$ 分别为邻近~CAV~与局部非事故车辆的归一化平均速度。
+令 $z_i=\mathbf{1}\{|x_i-x_{\mathrm{acc}}|\le R\}$，$b_i=\mathbf{1}\{i\text{ 位于阻塞车道}\}$，惩罚项 $P_{\mathrm{block}}=z_i b_i$。则
+\begin{equation}
+  R_i = \mathrm{clip}\big(
+    0.55\,R_i^{\mathrm{ind}} + 0.35\,R_i^{\mathrm{group}} - 0.10\,P_{\mathrm{block}},\,0,1
+  \big).
+\end{equation}
+该设计不直接奖励换道次数，而是通过“近区勿占阻塞车道 + 提升局部通行速度”引导合理绕行。
+
+\section{实验设置}
+
+\subsection{环境与基线}
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{仿真平台：} SUMO + TraCI；碰撞处理为移除，禁用传送；
+  \item \textbf{无控制基线（No Control）：} CAV 始终执行~KEEP，仅依赖跟驰模型；
+  \item \textbf{MAPPO 变体：} 参数共享~MAPPO~+ 奖励/掩码消融（见第~\ref{sec:results}~节）。
+\end{itemize}
+
+\subsection{训练与评估协议}
+正式训练采用 $100$ 次策略更新，每次 rollout $512$ 步，合计 $51{,}200$ 环境步；训练随机种子为~$42$。
+评估采用确定性策略，每次运行 $1800$ 仿真步（$180\,\mathrm{s}$）。当前已完成随机种子~$42$ 的端到端正式评估；
+其余独立种子将在投稿定稿前补齐，因此现阶段结果用于验证方法可行性，不用于统计显著性推断。
+评价指标包括：全路段平均速度、事故近区平均速度、通行量（到达车辆数）、上游排队代理指标（事故上游 $250\,\mathrm{m}$ 内 $v<15\,\mathrm{m/s}$ 的慢车统计）、近区阻塞车道占比、碰撞次数、非法动作率及动作分布。
+
+\subsection{实现细节}
+观测维度 $17$，动作维度 $3$，最大回合步数 $1000$。
+训练中对动态进出的~CAV~进行槽位重绑定，不重置~SUMO~进程，以保持连续车流一致性。
+
+\section{结果与分析}
+\label{sec:results}
+
+\subsection{拥堵场景正式评估（初步结果）}
+表~\ref{tab:eval} 给出当前默认双车道阻塞场景下的同协议比较。三种方法使用相同交通需求、事故位置、仿真时长和随机种子；MAPPO 在评估中冻结参数并采用确定性动作。
+
+\begin{table}[htbp]
+  \centering
+  \caption{拥堵场景初步评估结果（种子~42，180\,s）}
+  \label{tab:eval}
+  \begin{tabular}{lccc}
+    \toprule
+    指标 & No Control & Rule Divert & MAPPO \\
+    \midrule
+    平均速度 $(\mathrm{m/s})$ & 10.455 & \textbf{11.278} & 10.737 \\ 
+    近区平均速度 $(\mathrm{m/s})$ & 5.712 & 7.043 & \textbf{7.263} \\ 
+    通行量 & 80 & 86 & \textbf{88} \\ 
+    平均排队代理 & 38.303 & \textbf{34.071} & 35.990 \\ 
+    近区阻塞车道占比 & 0.551 & \textbf{0.225} & 0.437 \\ 
+    碰撞次数 & 0 & 0 & 0 \\ 
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+相对 No~Control，MAPPO 的平均速度提高约 $2.7\%$，事故近区速度提高约 $27.2\%$，通行量提高 $10\%$，平均排队代理降低约 $6.0\%$。这说明策略能够利用事故距离、阻塞车道信息及局部群体速度形成有效绕行行为。相对 Rule~Divert，MAPPO 的近区速度和通行量略高，但平均速度更低、平均排队及阻塞车道占比更高，表明学习策略尚未在所有交通指标上超过具有先验知识的规则策略。
+
+\subsection{结果有效性与威胁}
+当前正式表仅包含一个训练种子和一个评估种子。虽然三种方法共享同一随机种子有助于控制到达流差异，但单次运行无法估计方差，也不能支持显著性声明。投稿定稿时应至少补充 $5$ 个独立评估种子，报告均值、标准差、配对差值的 $95\%$ 置信区间，并同时公开逐次运行数据。另一个限制是中心化 Critic 的输入为四个受控 CAV 局部观测的拼接，而非完整交通状态；超过四辆活跃 CAV 时会发生截断，这可能限制策略在高渗透率场景中的可扩展性。
+\subsection{训练稳定性}
+$1$–$100$ 次更新过程中回报曲线总体稳定，动作熵保持探索，动态多智能体重绑定机制工作正常
+（峰值在途~CAV~数可达十余辆，槽位掩码有效）。因此当前瓶颈主要在\textbf{目标对齐与合法动作动力学}，而非训练崩溃。
+
+\section{结论与展望}
+
+本文面向高速公路事故区混合交通，提出 MAPPO with Group Benefit 的多~CAV~协同换道控制方法，
+并在~SUMO~场景中完成环境、观测、奖励设计、合法动作约束与评估管线验证。
+结果表明：协同控制不仅依赖算法稳定性，更依赖奖励与事故区通行目标的一致性；
+在 Candidate~A 奖励下引入动作掩码可消除非法动作，但需同步修正~GAE~空槽污染、
+末端自举与换道进行中的指令冲突，才能相对~A+Mask~恢复速度并降低排队。
+在当前拥堵场景的种子~42 评估中，MAPPO 相对 No~Control 改善了平均速度、近区速度、通行量和排队代理，
+但与 Rule~Divert 相比尚未全面占优，且多随机种子统计验证仍待完成。
+
+未来工作包括：（1）抑制合法振荡（换道冷却 / 观测增强）并力争主通行指标稳定超过强基线；
+（2）补充规则换道与独立~PPO~等对比基线，开展渗透率/需求水平敏感性分析；
+（3）引入邻居注意力以提升动态邻域表征与可解释性；
+（4）扩展多事故点、多阻塞车道与更长走廊。
+
+\section*{致谢}
+感谢项目开发与实验过程中提供算力与仿真支持的相关同事。
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
+
+

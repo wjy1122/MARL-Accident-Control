@@ -1,0 +1,6 @@
+# Core dependencies for MARL-Accident-Control-V2
+# TraCI is provided by SUMO (SUMO_HOME/tools), not pip.
+numpy>=1.26
+torch>=2.2
+PyYAML>=6.0
+matplotlib>=3.8

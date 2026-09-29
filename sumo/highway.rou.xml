@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<routes>
+    <vType id="HDV" accel="2.6" decel="4.5" sigma="0.6" length="5.0" minGap="3.0" maxSpeed="30.0" color="1,0,0" carFollowModel="Krauss" guiShape="passenger" />
+    <vType id="CAV" accel="2.6" decel="4.5" sigma="0.0" length="5.0" minGap="2.5" maxSpeed="30.0" color="0,0,1" carFollowModel="Krauss" guiShape="passenger" />
+    <vType id="ACCIDENT" accel="1.0" decel="8.0" sigma="0.0" length="8.0" minGap="1.0" maxSpeed="0.01" color="1,1,0" carFollowModel="Krauss" guiShape="passenger" />
+    <route id="main" edges="e0" />
+    <flow id="flow_HDV" type="HDV" vehsPerHour="3840" route="main" begin="0" end="3600" departLane="random" departSpeed="max" />
+    <flow id="flow_CAV" type="CAV" vehsPerHour="960" route="main" begin="0" end="3600" departLane="random" departSpeed="max" />
+    <vehicle id="ACCIDENT_0" type="ACCIDENT" route="main" depart="0" departLane="0" departPos="700.00" departSpeed="0">
+        <stop lane="e0_0" startPos="694.00" endPos="706.00" duration="3600.0" />
+    </vehicle>
+    <vehicle id="ACCIDENT_1" type="ACCIDENT" route="main" depart="0" departLane="1" departPos="700.00" departSpeed="0">
+        <stop lane="e0_1" startPos="694.00" endPos="706.00" duration="3600.0" />
+    </vehicle>
+</routes>

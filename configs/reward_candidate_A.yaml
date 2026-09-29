@@ -1,0 +1,20 @@
+# Phase 5.3 Candidate A — Minimal Group-benefit Reward
+# Does NOT replace configs/reward.yaml (current / Phase 2.4 default).
+# Loaded only when HighwayAccidentEnv(reward_config=...) points here.
+
+seed: 42
+
+reward:
+  variant: candidate_A
+  max_speed_mps: 30.0
+  # Align with configs/env.yaml observation.range_m
+  neighbor_range_m: 150.0
+  # Soft accident gate for P_block (same scale as obs range)
+  zone_range_m: 150.0
+  # R_group = alpha * S_cav + (1 - alpha) * S_loc
+  group_alpha: 0.6
+  # R = w_ind * R_ind + w_grp * R_group - w_b * P_block
+  # Starting weights from Phase 5.2 report (not proven optimal).
+  individual_weight: 0.55
+  group_weight: 0.35
+  block_weight: 0.10

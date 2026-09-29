@@ -1,0 +1,21 @@
+# Phase 6.5 Candidate A2 — speed-heavy + LC/reversal cost + progress
+# Does NOT replace configs/reward_candidate_A.yaml (kept for ablation).
+# Goal: beat No Control on mean/near speed and throughput while cutting osc.
+
+seed: 42
+
+reward:
+  variant: candidate_A
+  max_speed_mps: 30.0
+  neighbor_range_m: 150.0
+  zone_range_m: 150.0
+  group_alpha: 0.6
+  # Stronger individual speed; lighter group jostling.
+  individual_weight: 0.70
+  group_weight: 0.18
+  block_weight: 0.12
+  # Pay for executed LC and opposite successive LC (effective).
+  lc_weight: 0.08
+  rev_weight: 0.18
+  # Reward forward progress (Δx / (v_max · dt)), clipped to [0, 1].
+  progress_weight: 0.10

@@ -1,0 +1,48 @@
+# Virtual environments
+.venv/
+.venv311/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.idea/
+.vscode/
+.cursor/
+
+# Logs and local outputs
+*.log
+logs/
+checkpoints/
+
+# Experiment artifacts (keep directory via .gitkeep)
+results/**
+!results/**/
+!results/**/.gitkeep
+
+# SUMO generated / temporary
+*.sumo
+*.out.xml
+*.xml.bak
+sumo/*.net.xml.bak
+sumo/accident_upstream.xml
+
+# LaTeX build artifacts (keep sources + PDF)
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.lof
+paper/*.lot
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz

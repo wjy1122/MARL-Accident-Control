@@ -1,0 +1,106 @@
+# Phase 1 SUMO highway accident scenario
+seed: 42
+
+highway:
+  lanes: 3
+  length_m: 1200
+  speed_limit_mps: 30.0
+  edge_id: e0
+  from_node: n0
+  to_node: n1
+
+accident:
+  # Fixed accident zone: block one lane (rightmost, index 0).
+  position_m: 700.0
+  blocked_lane_indices: [0]
+  vehicle_id_prefix: ACCIDENT
+  length_m: 8.0
+  stop_half_width_m: 4.0
+  duration_s: 3600.0
+
+traffic:
+  # Total demand; CAV share is configurable (not hard-coded in code logic).
+  # Phase 4.4.9 formal candidate: 3600 veh/h (was 1800).
+  vehs_per_hour: 3600
+  cav_penetration: 0.2
+  flow_begin_s: 0
+  flow_end_s: 3600
+  depart_lane: random
+  depart_speed: max
+
+vehicle_types:
+  HDV:
+    accel: 2.6
+    decel: 4.5
+    sigma: 0.5
+    length: 5.0
+    min_gap: 2.5
+    max_speed: 30.0
+    color: "1,0,0"
+    gui_shape: passenger
+  CAV:
+    accel: 2.6
+    decel: 4.5
+    sigma: 0.0
+    length: 5.0
+    min_gap: 2.5
+    max_speed: 30.0
+    color: "0,0,1"
+    gui_shape: passenger
+  ACCIDENT:
+    accel: 1.0
+    decel: 8.0
+    sigma: 0.0
+    length: 8.0
+    min_gap: 1.0
+    max_speed: 0.01
+    color: "1,1,0"
+    gui_shape: passenger
+
+sumo:
+  gui: false
+  # Used only when gui=true (or cfg.gui.enabled / constructor gui=True).
+  gui_delay_ms: 50
+  step_length: 0.1
+  begin_s: 0
+  end_s: 3600
+  config_file: sumo/highway.sumocfg
+  net_file: sumo/highway.net.xml
+  route_file: sumo/highway.rou.xml
+  additional_file: sumo/highway.add.xml
+  collision_action: remove
+  time_to_teleport: -1
+
+# Optional alias (constructor / CLI still override):
+# gui:
+#   enabled: false
+#   delay_ms: 50
+
+observation:
+  # Local sensing radius for neighbor gaps (m).
+  range_m: 150.0
+  # Speed / relative-speed normalization scales (m/s).
+  max_speed_mps: 30.0
+  rel_speed_scale_mps: 30.0
+
+action:
+  # TraCI changeLane duration (seconds). Prefer over hard-coding in Python.
+  lane_change_duration_s: 1.0
+  # From highway.net.xml: travel +x, lane0 y=-8 (right), lane2 y=-1.6 (left)
+  # → LEFT increases lane index.
+  left_increases_index: true
+
+episode:
+  # RL / env closed-loop horizon (simulation steps via env.step(actions)).
+  max_episode_steps: 1000
+
+test:
+  # Used by scripts/test_sumo_scenario.py
+  sim_seconds: 180.0
+  accident_probe_radius_m: 150.0
+  congestion_upstream_m: 250.0
+  congestion_speed_mps: 15.0
+  min_hdv_seen: 1
+  min_cav_seen: 1
+  min_near_accident: 1
+  min_slow_upstream: 1

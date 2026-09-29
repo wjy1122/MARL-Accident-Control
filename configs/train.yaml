@@ -1,0 +1,36 @@
+# Phase 4.2–4.4 training / rollout / PPO config
+seed: 42
+
+device: auto  # auto | cpu | cuda
+
+train:
+  # Phase 4.4 smoke: first closed-loop train (not full experiment)
+  num_episodes: 10
+  episodes: 100  # alias / reserved for longer runs
+  # Phase 4.4.2 coverage: 128 never reaches accident; 512 recommended
+  rollout_steps: 512
+  warmup_steps: 50
+  max_steps: 1000
+
+  save_interval: 5
+  log_interval: 1
+  checkpoint_dir: results/mappo_group_benefit/checkpoints
+  run_name: mappo_group_benefit
+
+  gamma: 0.99
+  gae_lambda: 0.95
+
+  ppo_epochs: 4
+  minibatch_size: 64
+
+  clip_eps: 0.2
+  # keep alias used earlier
+  clip_epsilon: 0.2
+
+  actor_lr: 3.0e-4
+  critic_lr: 1.0e-3
+  lr: 0.0003
+
+  entropy_coef: 0.01
+  value_coef: 0.5
+  max_grad_norm: 0.5

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SUMO-GUI view settings: vehicleQuality 2 = "simple shapes"
+     (required for vType guiShape="passenger" to take effect;
+      default 0 = triangles ignores guiShape). -->
+<viewsettings>
+    <scheme name="marl_v2">
+        <vehicles vehicleQuality="2" minVehicleWidth="1.00" exaggeration="1.00" showBlinker="true"/>
+    </scheme>
+</viewsettings>

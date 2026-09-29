@@ -1,0 +1,11 @@
+# Phase 2.4 Reward: Individual Benefit + Group Benefit
+# R_i = individual_weight * R_i^ind + group_weight * R_i^group
+
+seed: 42
+
+reward:
+  max_speed_mps: 30.0
+  # Align with configs/env.yaml observation.range_m
+  neighbor_range_m: 150.0
+  individual_weight: 0.7
+  group_weight: 0.3
